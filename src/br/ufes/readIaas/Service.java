@@ -1,4 +1,4 @@
-package br.ufes.readOpenstack;
+package br.ufes.readIaas;
 
 //import java.util.ArrayList;
 
@@ -8,9 +8,16 @@ public class Service {
 	private String dadoAvaliado;
 	private String total;
 	private int type;
+	private int nagiosMonitor;
 	private String uuid;
 	
 
+	public int getNagiosMonitor() {
+		return nagiosMonitor;
+	}
+	public void setNagiosMonitor(int nagiosMonitor) {
+		this.nagiosMonitor = nagiosMonitor;
+	}
 	public String getUuid() {
 		return uuid;
 	}

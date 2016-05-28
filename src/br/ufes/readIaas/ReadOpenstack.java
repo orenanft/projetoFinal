@@ -1,4 +1,4 @@
-package br.ufes.readOpenstack;
+package br.ufes.readIaas;
 
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -9,19 +9,31 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.Properties;
+import java.util.UUID;
 //import java.util.Scanner;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import org.nmap4j.*;
 import org.nmap4j.core.nmap.NMapExecutionException;
 import org.nmap4j.core.nmap.NMapInitializationException;
+import com.mysql.jdbc.Driver;
 
 
-public class ReadDatabase {
+@SuppressWarnings("unused")
+public class ReadOpenstack {
 
 	private static ArrayList<Node> nodes;
 	private static Node server;
+	private static ArrayList<Image> snapshots;
 	
+	public static ArrayList<Image> getSnapshots() {
+		return snapshots;
+	}
+
+	public static void setSnapshots(ArrayList<Image> snapshots) {
+		ReadOpenstack.snapshots = snapshots;
+	}
+
 	public static ArrayList<Node> getNodes() {
 		return nodes;
 	}
@@ -38,9 +50,34 @@ public class ReadDatabase {
 		server = serverFound;
 	}
 
+	public ReadOpenstack() throws Exception{
+		//Find Openstack snapshots
+		setKnownInstances();
+		
+		System.out.println("Finding the Server ");
+		Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
+        for (NetworkInterface netint : Collections.list(nets)){
+        	//if (netint.isUp() && !(netint.isLoopback()) && )
+        	if (netint.isUp() && !(netint.isLoopback())){
+				Enumeration<InetAddress> inetAddresses = netint.getInetAddresses();
+	       
+	    		for (InetAddress inetAddress : Collections.list(inetAddresses)) {
+	    			InetAddress ips = inetAddress;
+	       			String ipvquatro = ips.toString();
+	       			if (ipvquatro != null && ipvquatro.contains(".")){
+	       				//System.out.println("IP: " + ipvquatro);
+	       				String ip = ipvquatro.substring(1,ipvquatro.length());
+						findHost(netint, ip);
+	       			}
+	       		}        		
+			}
+        }
+        System.out.println("Finding the Nodes ");
+        findOpenstackNodes();        
+        
+	}
 	
-	
-	public static ResultSet readMysql(String selectSql) throws ClassNotFoundException, SQLException{
+	public static ResultSet readMysql(String selectSql, String user, String passwd, String database) throws ClassNotFoundException, SQLException{
 		System.out.println ("\t");
 		//SessionFactory factory; 
 		  Connection connect = null;
@@ -49,8 +86,8 @@ public class ReadDatabase {
 		
 		//Connection Properties
 			Properties connectionProps = new Properties();
-		    connectionProps.put("user", "root");
-		    connectionProps.put("password", "kaio22");
+		    connectionProps.put("user", user);
+		    connectionProps.put("password", passwd);
 		 // Load the MySQL driver
 		    Class.forName("com.mysql.jdbc.Driver");
 		    
@@ -58,7 +95,7 @@ public class ReadDatabase {
 		    connect = DriverManager.getConnection(
 	                  "jdbc:" + "mysql" + "://" +
 	                  "localhost" +
-	                  ":" + "3306" + "/" + "nova",
+	                  ":" + "3306" + "/" + database,
 	                  connectionProps);
 		    
 		    // Statements allow to issue SQL queries to the database
@@ -79,17 +116,37 @@ public class ReadDatabase {
 		
 		
 	    //SQL Query
-	    String selectSql = "select host, hostname, network_info from instances i "+
+	    String selectSql = "select host, hostname, uuid, image_ref, network_info from instances i "+
 				"join instance_info_caches ic on i.uuid = ic.instance_uuid "+
 				"where vm_state='active';";
 		
-	    ResultSet resultSet = readMysql(selectSql);  
+	    ResultSet resultSet = readMysql(selectSql,"root","kaio22","nova");  
+	    
+	    
 	    ArrayList<Node> aux = new ArrayList<Node>();
+	    
 		while (resultSet.next()) {
+			//verifica se instancia já está catalogada
+			if(getNodes()!=null){
+				for(Node searchNode: getNodes()){
+					if(searchNode.getUuid().equals(resultSet.getString(3))){
+						//existing instance
+						continue;
+					}
+				}
+			}
+			if(getSnapshots()!=null){
+				for(Image img: getSnapshots() ){
+					if(img.getFromInstance().equals(resultSet.getString(3))){
+						//found image from snapshot
+						System.out.println("Image from snapshot");
+					}
+				}
+			}
 	    	//Tratar cache do nova (resultSet.getString(3))
-	    		//System.out.println(resultSet.getString(1) + resultSet.getString(2) + resultSet.getString(3));
-			if (resultSet.getString(3).contains("bridge") && resultSet.getString(3).contains("address") && resultSet.getString(3).contains("network")){
-	    		networkArray = resultSet.getString(3).split(",");
+    		//System.out.println(resultSet.getString(1) + resultSet.getString(2) + resultSet.getString(3));
+			if (resultSet.getString(5).contains("bridge") && resultSet.getString(5).contains("address") && resultSet.getString(5).contains("network")){
+	    		networkArray = resultSet.getString(5).split(",");
 		    	/*No quarto(3) vetor encontramos a interface (iface) 
 		    	 *No nono(8) vetor encontramos o ip (ip) 
 		    	 *No vigesimo nono(29) vetor encontramos o MAC address (mac) 
@@ -122,20 +179,21 @@ public class ReadDatabase {
 	    	guest.setCamada(72);
 	    	guest.setType(1);
 	    	guest.setNagiosMonitor(0);
+	    	guest.setUuid(resultSet.getString(3));
+	    	guest.setImage(resultSet.getString(4));
 	    	//finding services
 	    	//guest.setServices(findServices(guest.ip));
-	    	
 	    	guest.setServices(findServices(ip));	    	    	
-	    	//
-		//add node to array if server 
+		    //
+			//add node to array if server 
 			if(guest.getHost().equals(getServer().getHostname())){
-		    	aux.add(guest);
+			   	aux.add(guest);
 			}
 			else{
 				System.out.println ("Instancia não pertence ao servidor" + guest.getHost() + getServer().getHostname());
-				}
-				}
-	    setNodes(aux);
+			}
+		}
+		setNodes(aux);
 	}
 	
 	private static ArrayList<Service> findServices(String ip) throws NMapInitializationException, NMapExecutionException {
@@ -167,6 +225,9 @@ public class ReadDatabase {
     			    		serviceName = findServiceName[j+1].substring(indexI + 1,indexF);
     			    		Service serv = new Service();
     				    	serv.setName(serviceName);
+    				    	serv.setNagiosMonitor(0);
+    				    	serv.setUuid(UUID.randomUUID().toString());
+    				    	serv.setType(2);
 				//	System.out.println(serviceName);
     				    	// VERIFYING SERVICE PROPERTIES (only http and domain)
     				    	if(serv.getName().equalsIgnoreCase("domain")){
@@ -229,7 +290,6 @@ public class ReadDatabase {
     				    	    } catch (Exception e) {}
     				    	    serv.setDadoAvaliado(dadoAvaliado);
     				    	    serv.setTotal(total);
-					    serv.setType(2);
     				    		//add service
     				    		services.add(serv);
     				    	}
@@ -237,7 +297,7 @@ public class ReadDatabase {
     				    		serv.setDadoAvaliado(null);
     				    		serv.setTotal(null);
     				    		//add service
-						serv.setType(2);
+						
     				    		services.add(serv);
     				    	}
     				    	break;
@@ -279,38 +339,74 @@ public class ReadDatabase {
 	    serverFound.setMac(macAd.toLowerCase());
 	    serverFound.setCamada(4);
 	    serverFound.setNagiosMonitor(0);
+	    serverFound.setUuid(UUID.randomUUID().toString());
 	    serverFound.setType(0);
 		setServer(serverFound);
 	}
 
-	
-	public ReadDatabase() throws Exception{
-		System.out.println("Finding the Server ");
-		Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
-        for (NetworkInterface netint : Collections.list(nets)){
-        	//if (netint.isUp() && !(netint.isLoopback()) && )
-        	if (netint.isUp() && !(netint.isLoopback())){
-				Enumeration<InetAddress> inetAddresses = netint.getInetAddresses();
-	       
-	    		for (InetAddress inetAddress : Collections.list(inetAddresses)) {
-	    			InetAddress ips = inetAddress;
-	       			String ipvquatro = ips.toString();
-	       			if (ipvquatro != null && ipvquatro.contains(".")){
-	       				//System.out.println("IP: " + ipvquatro);
-	       				String ip = ipvquatro.substring(1,ipvquatro.length());
-						findHost(netint, ip);
-	       			}
-	       		}        		
-			}
-        }
-        System.out.println("Finding the Nodes ");
-        findOpenstackNodes();        
-        
+	public static void setKnownInstances() throws ClassNotFoundException, SQLException{
+		//SQL Query
+	    ArrayList<Image> snapshots= new ArrayList<Image>();
+		String selectSql = "select image_id, value from glance.image_properties "+
+				"where name='instance_uuid';";
+	     
+	    ResultSet resultSet = readMysql(selectSql,"root","kaio22","glance");
+	    Image snap= new Image();
+	    while(resultSet.next()){
+	    	//System.out.println(resultSet.getString(1) +"\t" + resultSet.getString(2));
+	    	snap.setId(resultSet.getString(1));
+	    	snap.setFromInstance(resultSet.getString(2));
+	    	snapshots.add(snap);
+	    }
+	    
+	    setSnapshots(snapshots);
 	}
-
-	/*public static void main(String[] args) throws Exception {
 	
-			new ReadDatabase();
-			System.exit(0);
+	public static void searchNewIntances() throws Exception{
+
+		//SQL Query
+	    String selectSql = "select uuid from instances "+
+				"where vm_state='active';";
+		
+	    ResultSet resultSet = readMysql(selectSql,"root","kaio22","nova");
+	    while(resultSet.next()){
+	    	boolean hasInstance=false;
+	    	for(Node newNode: getNodes()){
+	    		if(newNode.getUuid().equals(resultSet.getString(1)))
+	    			hasInstance=true;
+	    			break;
+	    	}
+	    	if(!hasInstance){
+	    		findOpenstackNodes();
+	    	}
+	    }
+	    
+	}
+	
+	public static boolean searchForIntance(String uuid) throws Exception{
+		boolean queryOk=false;
+		//SQL Query
+	    String selectSql = "select uuid from instances "+
+				"where uuid='"+uuid+"' AND vm_state='active';";
+		
+	    ResultSet resultSet = readMysql(selectSql,"root","kaio22","nova");
+	    if(resultSet.next()){
+	    	queryOk=true;
+	    }
+	    
+	    return queryOk;
+	}
+	
+	/*public static void main(String[] args) throws Exception {
+			
+			setKnownInstances(); //4522c61c-6ef4-4aba-b981-e227f95eeda9
+			boolean ok=searchForIntance("1f54f649-5983-40df-89cc-c4c6b9853132");
+			if(ok){
+				System.out.println("Ok");
+			}
+			else{
+				System.out.println("NOk");
+			}
+		//System.out.println(UUID.randomUUID().toString());
 	}*/
 }

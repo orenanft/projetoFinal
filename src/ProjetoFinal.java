@@ -1,9 +1,9 @@
-import java.util.ArrayList;
+//import java.util.ArrayList;
 //import java.util.Scanner;
 
 import br.ufes.nagios.NagiosMonitor;
 import br.ufes.neo4j.WriteNeo4j;
-import br.ufes.readOpenstack.*;
+import br.ufes.readIaas.*;
 
 public class ProjetoFinal {
 	
@@ -12,18 +12,19 @@ public class ProjetoFinal {
 		//Scanner scanner = new Scanner(System.in);
 		System.out.println("Select Cloud Computing...");
 		System.out.println("For now, only OPENSTACK is supported");
-		new ReadDatabase();
+		new ReadOpenstack();
 		WriteNeo4j.neo4jServer("start");
         new WriteNeo4j();
-	System.out.println ("NAGIOS MONITOR");        
-	createShutDownHook();
+        System.out.println ("NAGIOS MONITOR");        
+      //Catch ctrl+c
+        createShutDownHook();
 		while(true){
-			//Catch ctrl+c
+			
 			//createShutDownHook();
-
+			ReadOpenstack.searchNewIntances();
 			try {
 				//exec nagios monitor
-				for (Node node: ReadDatabase.getNodes())
+				for (Node node: ReadOpenstack.getNodes())
 					new NagiosMonitor(node.getIp());					
 				    Thread.sleep(30000);                 //1000 milliseconds is one second.	
 			}catch(InterruptedException ex) {

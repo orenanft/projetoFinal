@@ -8,10 +8,8 @@ import java.util.Properties;
 import org.neo4j.jdbc.Driver;
 import org.neo4j.jdbc.Neo4jConnection;
 
-//import org.neo4j.tooling.GlobalGraphOperations;
-
-import br.ufes.readOpenstack.ReadDatabase;
-import br.ufes.readOpenstack.Service;
+import br.ufes.readIaas.ReadOpenstack;
+import br.ufes.readIaas.Service;
 
 
 
@@ -32,10 +30,10 @@ public class WriteNeo4j {
         System.out.println ("\t");
 	//DELETING DATA
 	addNeo4j("MATCH (n)-[r]-(ns) delete n,r,ns"); 
-        addNeo4j("MATCH (n) delete n");
+    addNeo4j("MATCH (n) delete n");
 
-	br.ufes.readOpenstack.Node server = ReadDatabase.getServer();
-        ArrayList<br.ufes.readOpenstack.Node> virtuals = ReadDatabase.getNodes(); 
+	br.ufes.readIaas.Node server = ReadOpenstack.getServer();
+        ArrayList<br.ufes.readIaas.Node> virtuals = ReadOpenstack.getNodes(); 
 
         //create physical server
         addNeo4j("CREATE (a:Hypervisor{Name:'"+server.getHostname()+
@@ -43,20 +41,22 @@ public class WriteNeo4j {
         		"',MAC:'"+server.getMac()+
         		"',Interface:'"+server.getIface()+
         		"',Layer:"+server.getCamada()+
-        		",Type:"+server.getType()+"})");
+        		",uuid:'"+server.getUuid()+
+        		"',Type:"+server.getType()+"})");
         	//get uuid
-        	server.setUuid(queryUuidNeo4j("Hypervisor"));
+        	//server.setUuid(queryUuidNeo4j("Hypervisor"));
         	
         //create virtual servers 	
-        for (br.ufes.readOpenstack.Node virtual : virtuals ){
+        for (br.ufes.readIaas.Node virtual : virtuals ){
 	       	addNeo4j("CREATE (a:Instance{Name:'"+virtual.getHostname()+
 	           		"',IP:'"+virtual.getIp()+
 	           		"',MAC:'"+virtual.getMac()+
 	           		"',Interface:'"+virtual.getIface()+
 	           		"',Layer:"+virtual.getCamada()+
-	           		",Type:"+virtual.getType()+"})");
+	           		",uuid:'"+virtual.getUuid()+
+	           		"',Type:"+virtual.getType()+"})");
 	       	//get uuid
-	       	virtual.setUuid(queryUuidNeo4j("Instance"));
+	       	//virtual.setUuid(queryUuidNeo4j("Instance"));
 	        //create relationship
 	       	addNeo4j("MATCH (a:Hypervisor),(b:Instance) WHERE a.uuid='"+server.getUuid()+
 	       			"' AND b.uuid='"+virtual.getUuid()+"' CREATE (a)-[r:Hosts]->(b)");
@@ -64,16 +64,17 @@ public class WriteNeo4j {
 	        //getting services
 	       	for (Service service :  virtual.getServices()){
 	        	if (service.getDadoAvaliado() != null){
-	        		addNeo4j("CREATE (a:Service{Name:'"+service.getName()+"',`"+
-	        				service.getDadoAvaliado()+"`:'"+
-	        				service.getTotal()+"',Type:"+
-	        				service.getType()+"})");
+	        		addNeo4j("CREATE (a:Service{Name:'"+service.getName()+
+        					"',uuid:'"+service.getUuid()+
+        					"', `"+service.getDadoAvaliado()+"`:'"+service.getTotal()+
+        					"',Type:"+service.getType()+"})");
 	        	}else{
 	        		addNeo4j("CREATE (a:Service{Name:'"+service.getName()+
+	        				"',uuid:'"+service.getUuid()+
 	        				"',Type:"+service.getType()+"})");
 	        	}
 	        	//get uuid
-	        	service.setUuid(queryUuidNeo4j("Service"));
+	        	//service.setUuid(queryUuidNeo4j("Service"));
 	        	//create relationship
 	        	addNeo4j("MATCH (a:Instance),(b:Service) WHERE a.uuid='"+virtual.getUuid()+
 	       			"' AND b.uuid='"+service.getUuid()+"'CREATE (a)-[r:Provides]->(b)");

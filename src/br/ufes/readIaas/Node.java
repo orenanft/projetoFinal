@@ -1,4 +1,4 @@
-package br.ufes.readOpenstack;
+package br.ufes.readIaas;
 
 import java.util.ArrayList;
 
@@ -14,7 +14,16 @@ public class Node{
 	private int type;
 	private int nagiosMonitor;
 	private String uuid;
+	private String image;
 	
+	public String getImage() {
+		return image;
+	}
+
+	public void setImage(String image) {
+		this.image = image;
+	}
+
 	public String getUuid() {
 		return uuid;
 	}

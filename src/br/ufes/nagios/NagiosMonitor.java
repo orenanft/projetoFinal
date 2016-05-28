@@ -5,9 +5,9 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 
 import br.ufes.neo4j.WriteNeo4j;
-import br.ufes.readOpenstack.Node;
-import br.ufes.readOpenstack.ReadDatabase;
-import br.ufes.readOpenstack.Service;
+import br.ufes.readIaas.Node;
+import br.ufes.readIaas.ReadOpenstack;
+import br.ufes.readIaas.Service;
 
 public class NagiosMonitor {
 
@@ -16,22 +16,19 @@ public class NagiosMonitor {
 	//private final static String dns="/usr/lib/nagios/plugins/check_dns";
 	private final static String ssh="/usr/lib/nagios/plugins/check_ssh";
 	
-	public NagiosMonitor(String nodeIp){
+	public NagiosMonitor(String nodeIp) throws Exception{
 		//check instances
 		if(nagiosIntance(nodeIp))
 			nagiosService(nodeIp);//check services
 		
 	}
-	/*public static void main(String[] args){
-		new NagiosMonitor();
-	}*/
 
 	private void nagiosService(String nodeIp) {
 		// TODO Auto-generated method stub
 		System.out.println ("\t");
 		String serviceName, nagiosOutput=null;
 		
-    	for(Node node: ReadDatabase.getNodes()){ 
+    	for(Node node: ReadOpenstack.getNodes()){ 
     		if(node.getIp().equals(nodeIp)){
     			ArrayList<Service> servicesList= node.getServices();
     			for(Service service : servicesList){
@@ -46,7 +43,7 @@ public class NagiosMonitor {
     					serviceName=ssh;
     				}
     				else{
-    					System.out.println("Command not supported");
+    					System.out.println("Service "+ name +" not monitored, please contact the admin");
     					continue;
     				}
     			//System.out.println(serviceName);
@@ -68,6 +65,7 @@ public class NagiosMonitor {
     			        p.destroy();
     			    } catch (Exception e) {}
     		        if (nagiosOutput.contains("OK")){
+    		        	service.setNagiosMonitor(0);
     		        	//crawl names in service neo4j
     		        	ArrayList <String> result= WriteNeo4j.queryNeo4j("SERVICE", "Name", "IP", nodeIp);
     		        	boolean serviceExists=false;
@@ -85,28 +83,39 @@ public class NagiosMonitor {
     		        		 * CREATE (a)-[r:RUN]->(b)
     		        		 */
     		        		if(service.getDadoAvaliado()==null){
-	    		        		WriteNeo4j.addNeo4j("CREATE (a:Service{Name:'"+service.getName()+"',Type:2})");
-						//get new uuid
-						service.setUuid(WriteNeo4j.queryUuidNeo4j("Service"));
-	    		        		WriteNeo4j.addNeo4j("MATCH (a:Instance),(b:Service) WHERE a.Name='"+node.getHostname()+"' AND a.uuid='"+node.getUuid()+"' AND b.Name='"+service.getName()+"' CREATE (a)-[r:Provides]->(b)");
+	    		        		WriteNeo4j.addNeo4j("CREATE (a:Service{Name:'"+service.getName()+
+	    		        				"',uuid:'"+service.getUuid()+
+	    		        				"',Type:"+service.getType()+"})");
+	    		        		//get new uuid
+	    		        		//service.setUuid(WriteNeo4j.queryUuidNeo4j("Service"));
+	    		        		WriteNeo4j.addNeo4j("MATCH (a:Instance),(b:Service) WHERE a.Name='"+
+	    		        		node.getHostname()+"' AND a.uuid='"+node.getUuid()+"' AND b.uuid='"+
+	    		        		service.getUuid()+"' CREATE (a)-[r:Provides]->(b)");
     		        		}else{
-    		        			WriteNeo4j.addNeo4j("CREATE (a:Service{Name:'"+service.getName()+"', `"+service.getDadoAvaliado()+"`:'"+service.getTotal()+"',Type:2})");
-						//get new uuid
-						service.setUuid(WriteNeo4j.queryUuidNeo4j("Service"));
-	    		        		WriteNeo4j.addNeo4j("MATCH (a:Instance),(b:Service) WHERE a.Name='"+node.getHostname()+"' AND a.uuid='"+node.getUuid()+"' AND b.Name='"+service.getName()+"' CREATE (a)-[r:Provides]->(b)");
+    		        			WriteNeo4j.addNeo4j("CREATE (a:Service{Name:'"+service.getName()+
+    		        					"',uuid:'"+service.getUuid()+
+    		        					"', `"+service.getDadoAvaliado()+"`:'"+service.getTotal()+
+    		        					"',Type:"+service.getType()+"})");
+    		        			//get new uuid
+    		        			//service.setUuid(WriteNeo4j.queryUuidNeo4j("Service"));
+	    		        		WriteNeo4j.addNeo4j("MATCH (a:Instance),(b:Service) WHERE a.Name='"+
+    		        			node.getHostname()+"' AND a.uuid='"+node.getUuid()+
+    		        			"' AND b.uuid='"+service.getUuid()+"' CREATE (a)-[r:Provides]->(b)");
     		        		}
     		        	}
     		        }else{
     		        	//remove service
-    		        	WriteNeo4j.deleteNeo4j("service","uuid", service.getUuid());
-    		        	/*ArrayList <String> result= WriteNeo4j.queryNeo4j("SERVICE", "Name", "IP", nodeIp);
-    		        	for(String nameSNeo4j: result){
-    		        		if(nameSNeo4j.equals(serviceName)){
-    		        			
-    				    		System.out.println("I've removed service "+nameSNeo4j+" from neo4j");
-    				    		break;
-    		        		}
-    		        	}*/
+    		        	
+    		        	if (service.getNagiosMonitor() < 3 ){
+    			    	  	service.setNagiosMonitor(node.getNagiosMonitor()+1);
+    			    	  	System.out.println("Service "+service.getName()  +" is not responding");
+    			    	  }
+    			    	  else{
+    			    	  	//delete node
+    			    		  WriteNeo4j.deleteNeo4j("service","uuid", service.getUuid());
+    			    		System.out.println("Node "+service.getName()+" has been removed");
+
+    			    	  }
     		        }
     			}
     		break;
@@ -115,7 +124,7 @@ public class NagiosMonitor {
 		
 	}
 
-	private boolean nagiosIntance(String nodeIp) {
+	private boolean nagiosIntance(String nodeIp) throws Exception {
 		System.out.println ("\t");
 		// TODO Auto-generated method stub
 		boolean checkService=false;
@@ -143,10 +152,10 @@ public class NagiosMonitor {
 	    if (nagiosOutput.contains("OK")){
 	    	//set nagios monitor para zero
 	    	//TO-DO
-	    	for(Node node: ReadDatabase.getNodes()){ 
+	    	for(Node node: ReadOpenstack.getNodes()){ 
 	    		if(node.getIp().equals(nodeIp)){
 	    			node.setNagiosMonitor(0);
-	    			System.out.println(node.getHostname() + " Nagios monitor = 0");
+	    			System.out.println(node.getHostname() + " Ok");
 				checkService=true;
 				//crawl ips in neo4j
     		        ArrayList <String> result= WriteNeo4j.queryNeo4j("INSTANCE", "IP");
@@ -159,34 +168,37 @@ public class NagiosMonitor {
     		        	if(!hasInstance){
         		        	//if not exists create instance
     		        		WriteNeo4j.addNeo4j("CREATE (a:Instance{Name:'"+node.getHostname()+
-	           		"',IP:'"+node.getIp()+
-	           		"',MAC:'"+node.getMac()+
-	           		"',Interface:'"+node.getIface()+
-	           		"',Layer:"+node.getCamada()+
-	           		",Type:"+node.getType()+"})");
-	       	//get uuid
-	       	node.setUuid(WriteNeo4j.queryUuidNeo4j("Instance"));
-	        //create relationship
-	       	WriteNeo4j.addNeo4j("MATCH (a:Hypervisor),(b:Instance) WHERE a.uuid='"+ReadDatabase.getServer().getUuid()+
-	       			"' AND b.uuid='"+node.getUuid()+"' CREATE (a)-[r:Hosts]->(b)");
-
-	        //getting services
-	       	for (Service service :  node.getServices()){
-	        	if (service.getDadoAvaliado() != null){
-	        		WriteNeo4j.addNeo4j("CREATE (a:Service{Name:'"+service.getName()+"',`"+
-	        				service.getDadoAvaliado()+"`:'"+
-	        				service.getTotal()+"',Type:"+
-	        				service.getType()+"})");
-	        	}else{
-	        		WriteNeo4j.addNeo4j("CREATE (a:Service{Name:'"+service.getName()+
-	        				"',Type:"+service.getType()+"})");
-	        	}
-	        	//get uuid
-	        	service.setUuid(WriteNeo4j.queryUuidNeo4j("Service"));
-	        	//create relationship
-	        	WriteNeo4j.addNeo4j("MATCH (a:Instance),(b:Service) WHERE a.uuid='"+node.getUuid()+
-	       			"' AND b.uuid='"+service.getUuid()+"'CREATE (a)-[r:Provides]->(b)");
-    		        	}
+			           		"',IP:'"+node.getIp()+
+			           		"',MAC:'"+node.getMac()+
+			           		"',Interface:'"+node.getIface()+
+			           		"',Layer:"+node.getCamada()+
+			           		",uuid:'"+node.getUuid()+
+			           		"',Type:"+node.getType()+"})");
+					       	//get uuid
+					       	//node.setUuid(WriteNeo4j.queryUuidNeo4j("Instance"));
+					        //create relationship
+					       	WriteNeo4j.addNeo4j("MATCH (a:Hypervisor),(b:Instance) WHERE a.uuid='"+
+					        ReadOpenstack.getServer().getUuid()+
+					       	"' AND b.uuid='"+node.getUuid()+"' CREATE (a)-[r:Hosts]->(b)");
+				
+					        //getting services
+					       	for (Service service :  node.getServices()){
+					        	if (service.getDadoAvaliado() != null){
+					        		WriteNeo4j.addNeo4j("CREATE (a:Service{Name:'"+service.getName()+
+	    		        					"',uuid:'"+service.getUuid()+
+	    		        					"', `"+service.getDadoAvaliado()+"`:'"+service.getTotal()+
+	    		        					"',Type:"+service.getType()+"})");
+					        	}else{
+					        		WriteNeo4j.addNeo4j("CREATE (a:Service{Name:'"+service.getName()+
+		    		        				"',uuid:'"+service.getUuid()+
+		    		        				"',Type:"+service.getType()+"})");
+					        	}
+					        	//get uuid
+					        	//service.setUuid(WriteNeo4j.queryUuidNeo4j("Service"));
+					        	//create relationship
+					        	WriteNeo4j.addNeo4j("MATCH (a:Instance),(b:Service) WHERE a.uuid='"+node.getUuid()+
+					       			"' AND b.uuid='"+service.getUuid()+"' CREATE (a)-[r:Provides]->(b)");
+				    		        	}
     		        }
 	    			break;
 	    		}
@@ -197,7 +209,7 @@ public class NagiosMonitor {
 			//Remove node and their services to neo4j 
 	    	//increase nagios monitor
 	    	//TO-DO
-	    	for(Node node: ReadDatabase.getNodes()){ 
+	    	for(Node node: ReadOpenstack.getNodes()){ 
 	    		if(node.getIp().equals(nodeIp)){
 				//verify if the node is on neo4j
 			    	ArrayList <String> result= WriteNeo4j.queryNeo4j("INSTANCE", "IP");
@@ -212,19 +224,14 @@ public class NagiosMonitor {
 					}else{
 			    	if (node.getNagiosMonitor() < 3 ){
 			    	  	node.setNagiosMonitor(node.getNagiosMonitor()+1);
-			    	  	System.out.println(node.getHostname()  +"nagiosMonitor++");
+			    	  	System.out.println("Node "+node.getHostname()  +" is not responding");
 			    	  }
 			    	  else{
 			    	  	//delete node
-			    		//ArrayList <String> result= WriteNeo4j.queryNeo4j("instance", "uuid", "IP", nodeIp);
-			    		//if(result.size()==1){
-			    		WriteNeo4j.deleteNeo4j("instance","uuid", node.getUuid());
-			    		System.out.println("I've removed the nodes and their services from neo4j");
-			    		//}
-			    		//else{
-			    		//	System.out.println("I can't remove the node because the query returns more than one value");
-			    		//}
-			    		//remove= node.getHostname();
+			    		  if(!ReadOpenstack.searchForIntance(node.getUuid())){
+			    			  WriteNeo4j.deleteNeo4j("instance","uuid", node.getUuid());
+			    			  System.out.println("Node "+node.getHostname()+" has been removed");
+			    		  }
 			    	  }
 				}
 	    		}
