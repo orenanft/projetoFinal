@@ -31,7 +31,9 @@ public class WriteNeo4j {
 	//DELETING DATA
 	addNeo4j("MATCH (n)-[r]-(ns) delete n,r,ns"); 
     addNeo4j("MATCH (n) delete n");
-
+  //Service Stats
+    addNeo4j("create(n:ServiceStats)");
+	
 	br.ufes.readIaas.Node server = ReadOpenstack.getServer();
         ArrayList<br.ufes.readIaas.Node> virtuals = ReadOpenstack.getNodes(); 
 
@@ -78,6 +80,8 @@ public class WriteNeo4j {
 	        	//create relationship
 	        	addNeo4j("MATCH (a:Instance),(b:Service) WHERE a.uuid='"+virtual.getUuid()+
 	       			"' AND b.uuid='"+service.getUuid()+"'CREATE (a)-[r:Provides]->(b)");
+	        	//Service Stats
+	        	setProperty("ServiceStats",service.getName(),"false");
 		   	}
 	    }
     }
@@ -337,5 +341,74 @@ public static ArrayList <String> queryNeo4j(String mode, String property, String
 			e.printStackTrace();
 		}
     }
+    
+    @SuppressWarnings("unused")
+	public static void setProperty(String label, String property, String value){
+    	System.out.println ("\t");
+		Properties props = new Properties();
+		props.setProperty("user","neo4j");
+		props.setProperty("password","kaio22");
+		// Connect		
+    	Neo4jConnection con=null;
+		try {
+			con = new Driver().connect("jdbc:neo4j://localhost:7474/", props);
+			
+		} catch (SQLException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+    	
+    	// Querying
+     	ResultSet rs;
+		try {
+			rs = con.createStatement().executeQuery("match (n:"+label+") set n."+property+"="+value.toLowerCase()+"");
+
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+    }
+    
+    public static String queryProperty(String mode, String property){
+    	// Make sure Neo4j Driver is registered
+    	//Class.forName("org.neo4j.jdbc.Driver");
+	System.out.println ("\t");
+    	String result=null;
+    	Properties props = new Properties();
+    	props.setProperty("user","neo4j");
+    	props.setProperty("password","kaio22");
+    	
+    	// Connect		
+    	Neo4jConnection con=null;
+		try {
+			con = new Driver().connect("jdbc:neo4j://localhost:7474/", props);
+		} catch (SQLException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+    	
+    	// Querying
+     	ResultSet rs=null;
+		try {
+			rs = con.createStatement().executeQuery("MATCH (n:"+mode+") RETURN n."+property);
+	   		//System.out.println(rs.getString("n."+property));
+	    	if(rs.next())
+				result= rs.getString("n."+property);
+			}catch (SQLException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+		if(result.isEmpty())
+			System.out.println("CAUTION! Query is empty");
+			
+		return result;	
+    }
+    
+    /*public static void main (String [] args){
+    	addNeo4j("create(n:ServiceStats)");
+    	setProperty("ServiceStats","http","false");
+    	System.out.println(queryProperty("ServiceStats","http"));
+    }*/
 }
 

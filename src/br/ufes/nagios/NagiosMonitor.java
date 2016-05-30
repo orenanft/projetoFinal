@@ -66,6 +66,10 @@ public class NagiosMonitor {
     			    } catch (Exception e) {}
     		        if (nagiosOutput.contains("OK")){
     		        	service.setNagiosMonitor(0);
+    		        	/*verificar o dado avaliado por ssh
+    		        	 * se dado mudar
+    		        	 * setProperty("ServiceStats",service.getName(),"true");
+    		        	 */    		        	
     		        	//crawl names in service neo4j
     		        	ArrayList <String> result= WriteNeo4j.queryNeo4j("SERVICE", "Name", "IP", nodeIp);
     		        	boolean serviceExists=false;
