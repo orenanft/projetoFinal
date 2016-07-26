@@ -11,11 +11,14 @@ public class Node{
 	private String mac;
 	private ArrayList<Service> services;
 	private int camada;
-	private int type;
 	private int nagiosMonitor;
 	private String uuid;
+	private String projeto;
+	private String locatario;
+	private String roteador;
 	private String image;
 	
+	//getters and setters
 	public String getImage() {
 		return image;
 	}
@@ -30,14 +33,6 @@ public class Node{
 
 	public void setUuid(String uuid) {
 		this.uuid = uuid;
-	}
-
-	public int getType() {
-		return type;
-	}
-
-	public void setType(int type) {
-		this.type = type;
 	}
 
 	//getters and setters
@@ -112,4 +107,30 @@ public class Node{
 	public void setNagiosMonitor(int nagiosMonitor) {
 		this.nagiosMonitor = nagiosMonitor;
 	}
+	
+	public String getProjeto() {
+		return projeto;
+	}
+
+	public void setProjeto(String projeto) {
+		this.projeto = projeto;
+	}
+
+	public String getLocatario() {
+		return locatario;
+	}
+
+	public void setLocatario(String locatario) {
+		this.locatario = locatario;
+	}
+
+	public String getRoteador() {
+		return roteador;
+	}
+
+	public void setRoteador(String roteador) {
+		this.roteador = roteador;
+	}
+
+
 }

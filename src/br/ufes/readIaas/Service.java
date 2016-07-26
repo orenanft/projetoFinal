@@ -1,17 +1,15 @@
 package br.ufes.readIaas;
 
-//import java.util.ArrayList;
+import java.util.Map;
 
 public class Service {
 	
-	private String name;
-	private String dadoAvaliado;
-	private String total;
-	private int type;
+	private String nome;
+	private Map<String, Integer> dadoAvaliado;
 	private int nagiosMonitor;
 	private String uuid;
 	
-
+	//getters and setters
 	public int getNagiosMonitor() {
 		return nagiosMonitor;
 	}
@@ -25,29 +23,17 @@ public class Service {
 		this.uuid = uuid;
 	}
 	public String getName() {
-		return name;
+		return nome;
 	}
 	public void setName(String name) {
-		this.name = name;
+		this.nome = name;
 	}
-	public String getDadoAvaliado() {
+	public Map<String, Integer> getDadoAvaliado() {
 		return dadoAvaliado;
 	}
-	public void setDadoAvaliado(String dadoAvaliado) {
+	public void setDadoAvaliado(Map<String, Integer> dadoAvaliado) {
 		this.dadoAvaliado = dadoAvaliado;
 	}
-	public String getTotal() {
-		return total;
-	}
-	public void setTotal(String total) {
-		this.total = total;
-	}
-	
-	public int getType() {
-		return type;
-	}
 
-	public void setType(int type) {
-		this.type = type;
-	}
+
 }

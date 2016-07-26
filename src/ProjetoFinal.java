@@ -1,37 +1,34 @@
-//import java.util.ArrayList;
-//import java.util.Scanner;
+import java.util.ArrayList;
+
 
 import br.ufes.nagios.NagiosMonitor;
-import br.ufes.neo4j.WriteNeo4j;
+import br.ufes.neo4j.Neo4j;
 import br.ufes.readIaas.*;
 
 public class ProjetoFinal {
 	
 	public static void main(String[] args) throws Exception {
-		
-		//Scanner scanner = new Scanner(System.in);
-		System.out.println("Select Cloud Computing...");
-		System.out.println("For now, only OPENSTACK is supported");
-		new ReadOpenstack();
-		WriteNeo4j.neo4jServer("start");
-        new WriteNeo4j();
+	System.out.println("Selecione a IaaS...");
+	System.out.println("No momento, somente OPENSTACK é suportado");
+	new DescobreOpenstack();
+	Neo4j.neo4jServidor("start");
+        new Neo4j();
         System.out.println ("NAGIOS MONITOR");        
-      //Catch ctrl+c
+        //A execução do programa termina com um ctrl+c
         createShutDownHook();
 		while(true){
-			
-			//createShutDownHook();
-			ReadOpenstack.searchNewIntances();
+			DescobreOpenstack.procuraNovasIntancias();
 			try {
-				//exec nagios monitor
-				for (Node node: ReadOpenstack.getNodes())
-					new NagiosMonitor(node.getIp());					
-				    Thread.sleep(30000);                 //1000 milliseconds is one second.	
+			//Executa nagios monitor
+			ArrayList <String> ips;
+			ips= Neo4j.consulta("INSTANCE", "IP");
+    		        for(String ipNeo4j: ips)
+				new NagiosMonitor(ipNeo4j);					
+			Thread.sleep(30000); //1000 milisegundos = 1 segundo	
 			}catch(InterruptedException ex) {
-				    Thread.currentThread().interrupt();
+			    Thread.currentThread().interrupt();
 			}			
 		}
-	
 	}
 	
 	private static void createShutDownHook()
@@ -40,12 +37,9 @@ public class ProjetoFinal {
 	    {
 	        @Override
 	        public void run()
-	        {
-	            System.out.println();
-	            System.out.println("Thanks for using the application");
-	            System.out.println("Exiting...");
-	            
-	        }
+	        {   System.out.println();
+	            System.out.println("Obrigado por utilizar a aplicação");
+	            System.out.println("Saindo...");}
 	    }));
 	}
 

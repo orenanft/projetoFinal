@@ -8,85 +8,81 @@ import java.util.Properties;
 import org.neo4j.jdbc.Driver;
 import org.neo4j.jdbc.Neo4jConnection;
 
-import br.ufes.readIaas.ReadOpenstack;
+import br.ufes.readIaas.DescobreOpenstack;
+import br.ufes.readIaas.Node;
 import br.ufes.readIaas.Service;
 
+/*
+ *POSSÍVEIS MELHORIAS PARA A CLASSE: FAZER FUNÇÃO PARA MOLDAR A CONSULTA 
+ *E CHAMAR SOEMNTE A FUNÇÃO INSERE PARA EXECUTAR
+ */
 
-
-public class WriteNeo4j {
+public class Neo4j {
 
 	// START SNIPPET: createReltype
     /*private enum RelTypes implements RelationshipType {
         Hospeda, Possui;
     }*/
 
-    public WriteNeo4j() {
+    public Neo4j() {
 		// TODO Auto-generated constructor stub
     	System.out.println ("Writing in NEO4J...");
-	createDb();
+	criaBanco();
 	}
 
-	private void createDb() {
+    //funcao responsavel por criar o banco
+	private void criaBanco() {
         System.out.println ("\t");
 	//DELETING DATA
-	addNeo4j("MATCH (n)-[r]-(ns) delete n,r,ns"); 
-    addNeo4j("MATCH (n) delete n");
-  //Service Stats
-    addNeo4j("create(n:ServiceStats)");
+	insere("MATCH (n)-[r]-(ns) delete n,r,ns"); 
+    insere("MATCH (n) delete n");
+    //Service Stats
+    insere("create(n:ServiceStats)");
 	
-	br.ufes.readIaas.Node server = ReadOpenstack.getServer();
-        ArrayList<br.ufes.readIaas.Node> virtuals = ReadOpenstack.getNodes(); 
+	ArrayList<Node> servidor = DescobreOpenstack.getServidores();
+    ArrayList<br.ufes.readIaas.Node> virtuals = DescobreOpenstack.getNos(); 
 
         //create physical server
-        addNeo4j("CREATE (a:Hypervisor{Name:'"+server.getHostname()+
-        		"',IP:'"+server.getIp()+
-        		"',MAC:'"+server.getMac()+
-        		"',Interface:'"+server.getIface()+
-        		"',Layer:"+server.getCamada()+
-        		",uuid:'"+server.getUuid()+
-        		"',Type:"+server.getType()+"})");
-        	//get uuid
-        	//server.setUuid(queryUuidNeo4j("Hypervisor"));
-        	
-        //create virtual servers 	
+    for (br.ufes.readIaas.Node server : servidor ){
+    	
+    	//Criação do Nó de Computação (server)
+        insere("CREATE (a:Compute{Name:'"+server.getHostname()+
+        	"',IP:'"+server.getIp()+
+		"',Layer:"+server.getCamada()+
+        	",uuid:'"+server.getUuid()+"'})");
+
         for (br.ufes.readIaas.Node virtual : virtuals ){
-	       	addNeo4j("CREATE (a:Instance{Name:'"+virtual.getHostname()+
-	           		"',IP:'"+virtual.getIp()+
-	           		"',MAC:'"+virtual.getMac()+
-	           		"',Interface:'"+virtual.getIface()+
-	           		"',Layer:"+virtual.getCamada()+
-	           		",uuid:'"+virtual.getUuid()+
-	           		"',Type:"+virtual.getType()+"})");
-	       	//get uuid
-	       	//virtual.setUuid(queryUuidNeo4j("Instance"));
+        	if(virtual.getHost().equalsIgnoreCase(server.getHostname())){
+        	//Criação das Instâncias (virtual)	
+        	insere("CREATE (a:Instance{Name:'"+virtual.getHostname()+
+        	           "',IP:'"+virtual.getIp()+"',MAC:'"+virtual.getMac()+
+        	           "',Interface:'"+virtual.getIface()+
+        		   "',Layer:"+virtual.getCamada()+",uuid:'"+virtual.getUuid()+
+        		   "',Project:'"+virtual.getProjeto()+
+        		   "',Tenant:'"+virtual.getLocatario()+
+        		   "',Router:'"+virtual.getRoteador()+"'})");
 	        //create relationship
-	       	addNeo4j("MATCH (a:Hypervisor),(b:Instance) WHERE a.uuid='"+server.getUuid()+
+	       	insere("MATCH (a:Compute),(b:Instance) WHERE a.uuid='"+server.getUuid()+
 	       			"' AND b.uuid='"+virtual.getUuid()+"' CREATE (a)-[r:Hosts]->(b)");
 
 	        //getting services
 	       	for (Service service :  virtual.getServices()){
-	        	if (service.getDadoAvaliado() != null){
-	        		addNeo4j("CREATE (a:Service{Name:'"+service.getName()+
-        					"',uuid:'"+service.getUuid()+
-        					"', `"+service.getDadoAvaliado()+"`:'"+service.getTotal()+
-        					"',Type:"+service.getType()+"})");
-	        	}else{
-	        		addNeo4j("CREATE (a:Service{Name:'"+service.getName()+
-	        				"',uuid:'"+service.getUuid()+
-	        				"',Type:"+service.getType()+"})");
-	        	}
-	        	//get uuid
-	        	//service.setUuid(queryUuidNeo4j("Service"));
+	       		insere("CREATE (a:Service{Name:'"+service.getName()+
+	       	       		"',uuid:'"+service.getUuid()+"'})");
 	        	//create relationship
-	        	addNeo4j("MATCH (a:Instance),(b:Service) WHERE a.uuid='"+virtual.getUuid()+
+	        	insere("MATCH (a:Instance),(b:Service) WHERE a.uuid='"+virtual.getUuid()+
 	       			"' AND b.uuid='"+service.getUuid()+"'CREATE (a)-[r:Provides]->(b)");
-	        	//Service Stats
-	        	setProperty("ServiceStats",service.getName(),"false");
+	        	//Service Stats (todos os serviços iniciados com false)
+	        	adiciona("ServiceStats",service.getName(),"false");
 		   	}
+         }
 	    }
     }
+        
+    }
     
-	public static void neo4jServer(String status){
+	//função para (ligar/desligar/religar) o neo4j
+	public static void neo4jServidor(String status){
     	System.out.println ("\t");
 	String [] command = {"/neo4j/bin/neo4j",status};
 	    Process p;
@@ -95,8 +91,6 @@ public class WriteNeo4j {
 	        p = Runtime.getRuntime().exec(command);
 	        // get the result
 	        p.waitFor();
-	        // get the exit code
-	        //System.out.println ("exit: " + p.exitValue());
 	        if(p.exitValue() == 1 ){
 	        	System.out.println ("Erro ao executar comando " + command);
 	        }
@@ -104,7 +98,8 @@ public class WriteNeo4j {
 	    } catch (Exception e) {}
     }
 	
-	public static String queryUuidNeo4j(String mode) {
+	//função consulta uuid de um nó
+	public static String consultaUuid(String mode) {
 		// TODO Auto-generated method stub
 	System.out.println ("\t");
     	ArrayList <String> result= new ArrayList<String>();
@@ -142,8 +137,9 @@ public class WriteNeo4j {
     	
 		return result.get(0);
 	}
-        
-    public static ArrayList <String> queryNeo4j(String mode, String property){
+    
+	//função de consulta (retorna todos os valores de propriedade de nós com rótulo mode)
+    public static ArrayList <String> consulta(String mode, String property){
     	// Make sure Neo4j Driver is registered
     	//Class.forName("org.neo4j.jdbc.Driver");
 	System.out.println ("\t");
@@ -164,15 +160,7 @@ public class WriteNeo4j {
     	// Querying
      	ResultSet rs=null;
 		try {
-			if(mode.equalsIgnoreCase("instance")){
-				rs = con.createStatement().executeQuery("MATCH (n) WHERE n.Type=1 RETURN n."+property);
-			}
-			else if(mode.equalsIgnoreCase("service")){
-				rs = con.createStatement().executeQuery("MATCH (n) WHERE n.Type=2 RETURN n."+property);
-			}
-			else{
-				System.out.println("QueryNeo4j: Unavailable Mode");
-			}
+				rs = con.createStatement().executeQuery("MATCH (n:"+mode+") RETURN n."+property);
 		   	while(rs.next()){
 		   		//System.out.println(rs.getString("n."+property));
 		    	result.add(rs.getString("n."+property));
@@ -187,8 +175,8 @@ public class WriteNeo4j {
 			
 		return result;	
     }
-
-public static ArrayList <String> queryNeo4j(String mode, String property, String propertyParam, String valueParam){
+  //função de consulta (retorna todos os valores de propriedade de nós com rótulo mode dada uma condição)
+public static ArrayList <String> consulta(String mode, String property, String propertyParam, String valueParam){
 	System.out.println ("\t");
     	ArrayList <String> result= new ArrayList<String>();
     	Properties props = new Properties();
@@ -208,16 +196,14 @@ public static ArrayList <String> queryNeo4j(String mode, String property, String
      	ResultSet rs=null;
 		try {
 			if(mode.equalsIgnoreCase("instance")){
-				rs = con.createStatement().executeQuery("MATCH (n) WHERE n.Type=1 AND n."+propertyParam+"='"+valueParam+"' RETURN n."+property);
+				rs = con.createStatement().executeQuery("MATCH (n:"+mode+") WHERE n."+propertyParam+"='"+valueParam+"' RETURN n."+property);
 			while(rs.next()){
-                                //System.out.println(rs.getString("n."+property));
                         result.add(rs.getString("n."+property));
                         }
 			}
 			else if(mode.equalsIgnoreCase("service")){
-				rs = con.createStatement().executeQuery("MATCH (n)-[]-(ns) WHERE ns.Type=2 AND n."+propertyParam+"='"+valueParam+"' RETURN ns."+property);
+				rs = con.createStatement().executeQuery("MATCH (n)-[]-(ns:"+mode+") WHERE n."+propertyParam+"='"+valueParam+"' RETURN ns."+property);
 			while(rs.next()){
-                                //System.out.println(rs.getString("n."+property));
                         result.add(rs.getString("ns."+property));
                         }
 			}else if((valueParam != null && propertyParam == null)||(valueParam == null && propertyParam != null)){
@@ -238,13 +224,9 @@ public static ArrayList <String> queryNeo4j(String mode, String property, String
     }   
  
     @SuppressWarnings("unused")
-    public static void addNeo4j(String query){  
-		/*CREATE NODE AND RELATIONSHIPS AND SERVICES
-		 * Ex.: CREATE SERVICE
-		 * CREATE (a:Service{Name:'PostgreSql',description:'Banco de Dados',status:'Ativo',Type:2})
-		 * MATCH (a:Instance),(b:Service) WHERE a.Name='Web' AND a.uuid='45e6803a1c6411e692cde374a1521a23' AND b.Name='PostgreSql'
-		 * CREATE (a)-[r:RUN]->(b)
-		 */
+    //função de inserção ao neo4j (executa a query passada por parametro)
+    public static void insere(String query){  
+
 	System.out.println ("\t");
     	Properties props = new Properties();
     	props.setProperty("user","neo4j");
@@ -270,13 +252,8 @@ public static ArrayList <String> queryNeo4j(String mode, String property, String
     }
   
     @SuppressWarnings("unused")
+    // metodo para deletar (instancias ou serviços (mode))
     public static void deleteNeo4j(String mode, String property, String value){
-		/* dELETE NODE, RELATIONSHIPS AND SERVICES 
-		* (MATCH (n)-[r]-(rn) WHERE n.IP="?" AND rn.Type=2 DELETE n,r,rn)
-		*  DELETE SERVICE
-		*  MATCH (n) WHERE n.Type=2 AND Labels(n)= DELETE n
-		*  
-		*/
 		System.out.println ("\t");
 		Properties props = new Properties();
 		props.setProperty("user","neo4j");
@@ -295,10 +272,10 @@ public static ArrayList <String> queryNeo4j(String mode, String property, String
      	ResultSet rs;
 		try {
 			if(mode.equalsIgnoreCase("instance")){
-				rs = con.createStatement().executeQuery("MATCH ()-[r1]-(n) MATCH (n)-[r2]-(ns) WHERE n."+property+"='"+value+"' AND ns.Type=2 DELETE n,r1,r2,ns");
+				rs = con.createStatement().executeQuery("MATCH ()-[r1]-(n) MATCH (n)-[r2]-(ns) WHERE n."+property+"='"+value+"' DELETE n,r1,r2,ns");
 			}	
 			else if(mode.equalsIgnoreCase("service")){
-				rs = con.createStatement().executeQuery("MATCH ()-[r]-(n) WHERE n."+property+"='"+value+"' AND n.Type=2 DELETE n,r");
+				rs = con.createStatement().executeQuery("MATCH ()-[r]-(n) WHERE n."+property+"='"+value+"' DELETE n,r");
 			}
 			else{
 				System.out.println("DelNeo4j: Unavailable Mode");
@@ -310,12 +287,9 @@ public static ArrayList <String> queryNeo4j(String mode, String property, String
     }	
   
     @SuppressWarnings("unused")
-	public static void setNeo4j(String uuid, String property, String oldValue, String newValue){
-		/* dELETE NODE, RELATIONSHIPS AND SERVICES 
-		* (MATCH (n)-[r]-(rn) WHERE n.IP="?" AND rn.Type=2 DELETE n,r,rn)
-		*  DELETE SERVICE
-		*  MATCH (n) WHERE n.Type=2 AND Labels(n)= DELETE n  
-		*/
+  //função para adicionar/atualizar valor
+	public static void adiciona(String uuid, String property, String oldValue, String newValue){
+
 		System.out.println ("\t");
 		Properties props = new Properties();
 		props.setProperty("user","neo4j");
@@ -343,7 +317,8 @@ public static ArrayList <String> queryNeo4j(String mode, String property, String
     }
     
     @SuppressWarnings("unused")
-	public static void setProperty(String label, String property, String value){
+    //função para adicionar valor
+	public static void adiciona(String label, String property, String value){
     	System.out.println ("\t");
 		Properties props = new Properties();
 		props.setProperty("user","neo4j");
@@ -369,9 +344,8 @@ public static ArrayList <String> queryNeo4j(String mode, String property, String
 		}
     }
     
-    public static String queryProperty(String mode, String property){
-    	// Make sure Neo4j Driver is registered
-    	//Class.forName("org.neo4j.jdbc.Driver");
+    //função de consulta por parametro especifico
+    public static String consultaParam(String mode, String property){
 	System.out.println ("\t");
     	String result=null;
     	Properties props = new Properties();
@@ -404,11 +378,6 @@ public static ArrayList <String> queryNeo4j(String mode, String property, String
 			
 		return result;	
     }
-    
-    /*public static void main (String [] args){
-    	addNeo4j("create(n:ServiceStats)");
-    	setProperty("ServiceStats","http","false");
-    	System.out.println(queryProperty("ServiceStats","http"));
-    }*/
+
 }
 

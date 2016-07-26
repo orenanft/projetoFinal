@@ -1,14 +1,23 @@
-Projeto Final
+Projeto Final para a Graduação no Curso de Ciência da Computação - UFES
+	**orenanft@gmail.com
 
-Colaboradores: 
-	*orenanft@gmail.com
-	*ksimonassi@gmail.com
+*Colaboradores: 
 
-Funções:
+	**ksimonassi@gmail.com (https://github.com/ksimonassi/projetoGraduacao)
 
-1- Java Hibernate(Mysql)
-	*Leitura da base de dados do Nova (OpenStack).
+*Apresentação e Monografia anexados.
 
-2- Java Neo4j
-	*Inserção dos dados lidos do OpenStack;
-	*Persistencia dos dados no Neo4j.
+*How To:
+
+	**Compilar:
+		make
+
+	**Executar:
+		make run
+
+*Dependências (.jar em ListaJar.txt e ListaExecute.txt)
+
+	**Hibernate 5.5.2
+	**Mysql Connector 5.1.38
+	**Neo4j JDBC 2.3.1 (All in)
+	**Nmap4j 1.1.0
